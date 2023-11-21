@@ -1,0 +1,243 @@
+body {
+    background-color: #232529;
+}
+
+.screen__main {
+    margin-top: 68px;
+    display:flex
+}
+.screen__body {
+    min-width:0;
+    padding-right:24px;
+    padding-left:24px;
+    position:relative;width:100%
+}
+
+.button {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  display: block;
+  outline: none;
+  padding: 0;
+  position: relative;
+}
+
+.button__shape {
+  border-radius: 14px;
+  padding: 14px;
+  color: #3F444C;
+  background-color: #b0bdd633;
+  box-shadow: none;
+  transform: scale(1);
+}
+
+.button:hover .button__shape {
+  color: #ffffff;
+  background-color: #d5aa00;
+}
+  
+  
+.button__text {
+  font-size: 16px; 
+  font-weight: 400;
+  line-height: 28px;
+  overflow: hidden;
+  padding-bottom: 2px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main-screen {
+  align-content: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+}
+  
+.main-screen__container {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  width: 700px;
+}
+  
+.main-screen__text {
+  color: #1a2b4d99;
+  font-size: 16px;
+  line-height: 24px;
+  margin-top: 16px;
+}
+
+.main-screen__shortener-container {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.app-logo {
+  align-items: center;
+  display: flex;
+  width: 100%;
+}
+
+.app-logo__text {
+  color: #2f3747;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 40px;
+  margin: 0 0 0 12px;
+}
+
+.shortener__url-input-container {
+  align-items: flex-start;
+  display: flex;
+  width: 100%;
+}
+
+.shortener__url-input {
+  margin-right: 12px;
+  width: 100%;
+}
+
+.text-input__content {
+  box-sizing: border-box;
+  display: flex;
+  position: relative;
+  vertical-align: top;
+  width: 100%;
+  z-index: 0;
+  margin-right: 12px;
+}
+
+.text-input__box {
+  bottom: 0;
+  box-sizing: border-box;
+  height: auto;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  transition: background-color 0.15s linear, border-color 0.15s linear;
+  z-index: 1;
+}
+
+.text-input__control-container {
+  box-sizing: border-box;
+  display: flex;
+  padding: 16px;
+  width: 100%;
+}
+
+.text-input__control {
+  background: none;
+  border: 0 solid transparent;
+  box-sizing: border-box;
+  color: #2f3747;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0;
+  outline: 0;
+  padding: 0 20px;
+  position: relative;
+  vertical-align: top;
+  width: 100%;
+  z-index: 2;
+}
+  
+.text-input__control::placeholder {
+  color: #475a8080;
+  opacity: 1;
+}
+
+.text-input_view_contrast .text-input__box,
+.text-input_view_default .text-input__box {
+  border-radius: 14px;
+}
+
+.text-input__box {
+  border-bottom: 1px solid #a5b1ca4d;
+}
+
+.text-input__box:after {
+  border-bottom: 2px solid #ffd21f;
+  bottom: -1px;
+  content: "";
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  transform: scaleX(0);
+  transition: transform 0.1s cubic-bezier(0, 0, 0.2, 1) 0ms;
+}
+
+.text-input_view_contrast .text-input__box {
+  background-color: #fff;
+}
+
+.response__container {
+  align-items: center;
+  background-color: #fff;
+  border-radius: 24px;
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  width: 700px;
+  height: 120px;
+  overflow-y: hidden;
+}
+
+#result {
+  color: #2f3747;
+  font-size: 20px;
+  line-height: 32px;
+}
+
+a:hover {
+  color: #d00;
+}
+
+a {
+  color: #C3CCDE;
+  text-decoration: none;
+}
+
+@font-face {
+  font-display: optional;
+  font-family: 'YS Text';
+  font-style: normal;
+  font-weight: 300;
+  src: url(//yastatic.net/islands/_/kxV2-EeUdyizF_lxQ-hrmltgp3c.woff2) format('woff2'),
+       url(//yastatic.net/islands/_/p9QGkWz-vqtayeFDeI6z9Dxffpo.woff) format('woff');
+}
+
+@font-face {
+  font-display: optional;
+  font-family: 'YS Text';
+  font-style: normal;
+  font-weight: 400;
+  src: url(//yastatic.net/islands/_/PyVcRbwHetz0gOVWLonWH7Od8zM.woff2) format('woff2'),
+       url(//yastatic.net/islands/_/bIx8jOfCEfR-mECoDUEZywDBuHA.woff) format('woff');
+}
+
+@font-face {
+  font-display: optional;
+  font-family: 'YS Text';
+  font-style: normal;
+  font-weight: 500;
+  src: url(//yastatic.net/islands/_/7_GKBdKFbUPzKlghJRv55xgz0FQ.woff2) format('woff2'),
+       url(//yastatic.net/islands/_/SmqPmIMEXrW4lOY8QrhTUVDbrro.woff) format('woff');
+}
+
+@font-face {
+  font-display: optional;
+  font-family: 'YS Text';
+  font-style: normal;
+  font-weight: 700;
+  src: url(//yastatic.net/islands/_/6Roy0LCd05cK4nNCipgzheYcNVU.woff2) format('woff2'),
+       url(//yastatic.net/islands/_/KtHQR1erf3spayoIM4M4ngg0e2E.woff) format('woff');
+}
+
+body, button, input, textarea {
+  font-family: 'YS Text', arial, sans-serif;
+}

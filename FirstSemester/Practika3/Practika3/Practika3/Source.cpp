@@ -1,0 +1,191 @@
+#include <iostream>
+#include <thread>
+#include <ctime>
+#include <algorithm>
+#include <boost/asio.hpp>
+#include <boost/random.hpp>
+#include <unordered_map>
+
+using namespace boost::asio;
+
+class Server {
+public:
+    Server(io_service& io_service) : acceptor_(io_service, ip::tcp::endpoint(ip::tcp::v4(), 8080)) { //ѕосле многоточий идет инициализаци€ членов класса, при вызове функции, в данном случае конструктора
+        StartAccept(io_service);
+    }
+
+private:
+    void StartAccept(io_service& io_service) {
+        while (true) {
+            ip::tcp::socket socket(io_service);
+            acceptor_.accept(socket);
+            std::thread(&Server::HandleClient, this, std::move(socket)).detach();
+        }
+    }
+
+    void HandleClient(ip::tcp::socket socket) {
+        std::cout << "Client connect" << std::endl;
+        boost::system::error_code error;
+        streambuf request_buffer; // временное хранилище данных
+        std::cout << "Read data start" << std::endl;
+        read_until(socket, request_buffer, "\r\n\r\n", error); // чтение данных из сокета до "\r\n\r\n"
+        std::cout << "Read data successfuly" << std::endl;
+        if (error) {
+            std::cerr << error << std::endl;
+            socket.close();
+        }
+        std::istream request_stream(&request_buffer);
+        std::string request_line;
+        getline(request_stream, request_line);
+        if (request_line.find("POST /SHORTEN") != std::string::npos) { // если пришел POST запрос
+            std::cout << "POST" << std::endl;
+            std::string encrypted_long_url;
+            while (true) {
+                getline(request_stream, request_line); // извлекаем каждую строку
+                if (request_line.empty()) {
+                    std::cerr << "Request empty";
+                    break;
+                }
+                if (request_line.find("url=") != std::string::npos) { //≈сли что то нашел(вернул позицию)
+                    size_t position = request_line.find("url=");
+                    if (position != std::string::npos) {
+                        encrypted_long_url = request_line.substr(position + 4); // +4, чтобы пропустить "URL:"
+                        break;
+                    }
+                }
+            }
+            std::string long_url = Decrypt(encrypted_long_url); //ƒекодируем в обычный url
+            std::string temp_url = GetShortURL(long_url);
+            std::string short_url;
+            if (temp_url != "No") short_url = temp_url;
+            else {
+                short_url = RandomURL();
+                data_base[short_url] = long_url;
+            }
+            std::cout << short_url << " " << long_url << std::endl;
+            WriteResponse(short_url, socket, 200);
+            std::cout << "Response send" << std::endl;
+            socket.close();
+        }
+        else if (request_line.find("GET /") != std::string::npos) {
+            std::cout << "GET" << std::endl;
+            int start = request_line.find("GET /") + 5;
+            int end = request_line.find(' ', start);
+            std::string encrypted_short_url = request_line.substr(start, end - start);
+            std::string short_url = "http://localhost:8080/" + Decrypt(encrypted_short_url);
+            std::string long_url = GetLognURL(short_url);
+            if (long_url != "No") {
+                WriteResponse(long_url, socket, 302);
+                socket.close();
+            }
+            else {
+                WriteResponse(long_url, socket, 404);
+                socket.close();
+            }
+        }
+        else {
+            std::cout << "SOMETHING = \"" << request_line << "\"" << std::endl;
+            socket.close();
+        }
+    }
+
+    std::string GetLognURL(std::string& short_url) {
+        auto it = data_base.find(short_url);
+        if (it != data_base.end()) return it->second;
+        return "No";
+    }
+
+    std::string GetShortURL(std::string& long_url) {
+        for (const auto& pair : data_base) {
+            if (pair.second == long_url) {
+                return pair.first;
+            }
+        }
+        return "No";
+    }
+
+    std::string Decrypt(std::string& encrypted_long_url) {
+        std::string long_url;
+        for (int i = 0; i < encrypted_long_url.size(); ++i) {
+            if (encrypted_long_url[i] == '%' && i + 2 < encrypted_long_url.size()) {
+                int first_symbol = encrypted_long_url[i + 1] < 58 ? encrypted_long_url[i + 1] - '0' : encrypted_long_url[i + 1] - 'A' + 10;
+                int second_symbol = encrypted_long_url[i + 2] < 58 ? encrypted_long_url[i + 2] - '0' : encrypted_long_url[i + 2] - 'A' + 10;
+                char symbol = (first_symbol << 4) | second_symbol;
+                long_url.push_back(symbol);
+                i += 2;
+            }
+            else if (encrypted_long_url[i] == '+') {
+                long_url.push_back(' ');
+            }
+            else {
+                long_url.push_back(encrypted_long_url[i]);
+            }
+        }
+        return long_url;
+    }
+
+    std::string RandomURL() {
+        const std::string alphabet = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890";
+        boost::minstd_rand generator(static_cast<unsigned int>(std::time(0)));
+        boost::random::uniform_int_distribution<int> rand_alph(0, alphabet.length() - 1);
+        boost::random::uniform_int_distribution<int> rand_len(3, 5);
+        boost::random::variate_generator<boost::minstd_rand&, boost::random::uniform_int_distribution<int>> alph_gen(generator, rand_alph);
+        boost::random::variate_generator<boost::minstd_rand&, boost::random::uniform_int_distribution<int>> len_gen(generator, rand_len);
+        std::string short_url = "http://localhost:8080/";
+        int len_url = len_gen();
+        for (int i = 0; i < len_url; ++i) {
+            short_url += alphabet[alph_gen()];
+        }
+        return short_url;
+    }
+
+    void WriteResponse(std::string& url, ip::tcp::socket& socket, int code) {
+        streambuf response;
+        std::ostream response_stream (&response);
+        if (code == 200) {
+            response_stream << "HTTP/1.1 200 OK\r\n";
+            response_stream << "Access-Control-Allow-Origin: *\r\n";
+            response_stream << "Access-Control-Allow-Methods: GET, POST, PUT, DELETE\r\n";
+            response_stream << "Access-Control-Allow-Headers: Content-Type, Authorization\r\n";
+            response_stream << "Content-Type: text/html\r\n";
+            response_stream << "Content-Length: " << url.size() << "\r\n";
+            response_stream << "\r\n";
+            response_stream << url;
+        }
+        else if (code == 302) {
+            response_stream << "HTTP/1.1 302 Found\r\n";
+            response_stream << "Access-Control-Allow-Origin: *\r\n";
+            response_stream << "Access-Control-Allow-Methods: GET, POST, PUT, DELETE\r\n";
+            response_stream << "Access-Control-Allow-Headers: Content-Type, Authorization\r\n";
+            response_stream << "Content-Type: text/html\r\n";
+            response_stream << "Location: " << url << "\r\n";
+            response_stream << "\r\n";
+        }
+        else if (code == 404) {
+            response_stream << "HTTP/1.1 404 Not Found\r\n";
+            response_stream << "Access-Control-Allow-Origin: *\r\n";
+            response_stream << "Access-Control-Allow-Methods: GET, POST, PUT, DELETE\r\n";
+            response_stream << "Access-Control-Allow-Headers: Content-Type, Authorization\r\n";
+            response_stream << "Content-Type: text/html\r\n";
+            response_stream << "Content-Length: 9\r\n";
+            response_stream << "\r\n";
+            response_stream << "Not Found";
+        }
+        write(socket, response);
+    }
+
+    ip::tcp::acceptor acceptor_;
+    std::unordered_map<std::string, std::string> data_base;
+};
+
+
+int main() {
+    try {
+        io_service io_service;
+        Server server(io_service);
+    } catch (std::exception& e) {
+        std::cerr << e.what() << std::endl;
+    }
+
+    return 0;
+}

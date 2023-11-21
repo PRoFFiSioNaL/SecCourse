@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8"/>
+        <link href="main.css" rel="stylesheet"/>
+        <meta name="description" content="Простой способ сокращать ссылки и делиться ими"/>
+        <title>Сокращение ссылок</title>
+    </head>
+    <body>
+        <div class="screen__main">
+            <div class="screen__body">
+                <div class="main-screen">
+                    <div class="main-screen__container">
+                        <div class="app-logo">
+                            <svg width="48" fill="none" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                                <g clip-path="url(#clip0_953_9187)">
+                                    <mask id="mask0_953_9187" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48">
+                                        <circle cx="24" cy="24" r="24" fill="white"></circle>
+                                    </mask>
+                                    <g mask="url(#mask0_953_9187)">
+                                        <rect width="48" height="48" fill="#FC3F1D"></rect>
+                                        <path d="M27.5389 13.4409H25.11C20.9461 13.4409 18.8642 15.5228 18.8642 18.6457C18.8642 22.1156 20.2522 23.8505 23.375 25.9325L25.804 27.6674L18.8642 38.424H13.3124L19.9052 28.7084C16.0883 25.9325 14.0064 23.5035 14.0064 18.9927C14.0064 13.4409 17.8232 9.62402 25.11 9.62402H32.3967V38.424H27.5389V13.4409Z" fill="white"></path>
+                                    </g>
+                                </g>
+                                <defs>
+                                    <clipPath id="clip0_953_9187">
+                                        <rect width="48" height="48" fill="white"></rect>
+                                    </clipPath>
+                                </defs>
+                            </svg>
+                            <h1 class="app-logo__text">Кликер</h1>
+                        </div>
+                        <span class="main-screen__text">Помогите клиентам быстро найти вашу страницу в интернете. Благодаря короткой ссылке клиентам не придётся видеть длинные url-адреса, занимающие много места.</span>
+                        <form id="myForm" class="main-screen__shortener-container">
+                            <div class="shortener__url-input-container">
+                                <div class="text-input shortener__url-input text-input_view_contrast text-input_size_s56">
+                                    <span class="text-input__content">
+                                        <div class="text-input__control-container">
+                                            <input id="urlField" class="text-input__control" placeholder="Введите ссылку, которую нужно сократить" type="text" value="" name="url"/>
+                                        </div>
+                                        <span class="text-input__box"></span>
+                                    </span>
+                                </div>
+                                <button type="submit" class="button button_width_auto button_size_s56 button_view_primary button_mode_text">
+                                    <div class="button__shape">
+                                        <div class="button__content">
+                                            <span title="Сократить" class="button__text">Сократить</span>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                        </form>
+                        <div class="response__container" style="display: none;">
+                            <span id="result">
+                                <a href=""></a>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $('#myForm').submit(function(e) {
+                    e.preventDefault();
+                    $.ajax({
+                        type: "POST",
+                        url: 'http://localhost:8080/SHORTEN',
+                        data: $(this).serialize(),
+                        success: function(data) {
+                            // $('#result').html(data);
+                            var ss = $('<a>');
+                            ss.attr('href', data); // Установите URL для ссылки на основе полученных данных
+                            ss.text(data); // Текст ссылки
+                            // Обновление содержимого div
+                            $('.response__container #result').empty().append(ss);
+                            $('.response__container').show();
+                        },
+                        error: function(jqXHR, textStatus, errorThrown) {
+                            console.log("Ошибка", textStatus, "а ты кто такой",errorThrown);
+                        }
+                    });
+                });
+            });
+            </script>
+    </body>
+</html>
+<!-- method="post" action="http://localhost:8080/SHORTEN" -->
