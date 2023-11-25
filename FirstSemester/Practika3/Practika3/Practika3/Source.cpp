@@ -1,7 +1,6 @@
 #include <iostream>
 #include <thread>
 #include <ctime>
-#include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/random.hpp>
 #include <unordered_map>
@@ -47,22 +46,49 @@ private:
                     break;
                 }
                 if (request_line.find("url=") != std::string::npos) { //Если что то нашел(вернул позицию)
-                    size_t position = request_line.find("url=");
-                    if (position != std::string::npos) {
-                        encrypted_long_url = request_line.substr(position + 4); // +4, чтобы пропустить "URL:"
-                        break;
-                    }
+                    encrypted_long_url = request_line.substr(request_line.find("url=") + 4); // +4, чтобы пропустить "URL:"
+                    break;
                 }
             }
-            std::string long_url = Decrypt(encrypted_long_url); //Декодируем в обычный url
-            std::string temp_url = GetShortURL(long_url);
             std::string short_url;
-            if (temp_url != "No") short_url = temp_url;
-            else {
-                short_url = RandomURL();
-                data_base[short_url] = long_url;
+            try { //отправка в БД
+                io_service io_service_client;
+                ip::tcp::resolver resolver(io_service_client);
+                //ip::tcp::resolver::query query(ip::tcp::v4(), "8080");
+                ip::tcp::socket socket_client(io_service_client);
+                connect(socket_client, resolver.resolve(ip::tcp::resolver::query ("127.0.0.1", "6379")));
+                streambuf request;
+                std::ostream request_stream(&request);
+                request_stream << "POST /DATABASE QTP/1.0\n";
+                request_stream << "command=GetShortURL\n";
+                request_stream << "arg=" << encrypted_long_url;
+                request_stream << "\n\n";
+                write(socket_client, request);
+                streambuf response_buffer;
+                read_until(socket_client, response_buffer, "\n\n", error);
+                if (error) {
+                    std::cerr << error << std::endl;
+                    socket_client.close();
+                }
+                std::istream response_stream(&response_buffer);
+                std::string response_line;
+                getline(response_stream, response_line);
+                if (response_line.find("QTP /") != std::string::npos) {
+                    std::cout << "QTP" << std::endl;
+                    while (true) {
+                        getline(response_stream, response_line);
+                        if (response_line.find("url=") != std::string::npos) {
+                            short_url = response_line.substr(response_line.find("url=") + 4);
+                            break;
+                        }
+                    }
+                }
+                socket_client.close();
             }
-            std::cout << short_url << " " << long_url << std::endl;
+            catch (std::exception& e) {
+                std::cerr << e.what() << std::endl;
+            }
+            std::cout << short_url << std::endl;
             WriteResponse(short_url, socket, 200);
             std::cout << "Response send" << std::endl;
             socket.close();
@@ -71,10 +97,45 @@ private:
             std::cout << "GET" << std::endl;
             int start = request_line.find("GET /") + 5;
             int end = request_line.find(' ', start);
-            std::string encrypted_short_url = request_line.substr(start, end - start);
-            std::string short_url = "http://localhost:8080/" + Decrypt(encrypted_short_url);
-            std::string long_url = GetLognURL(short_url);
-            if (long_url != "No") {
+            std::string encrypted_short_url = "http://localhost:8080/" + request_line.substr(start, end - start);
+            std::string long_url;
+            try { //отправка в БД
+                io_service io_service_client;
+                ip::tcp::resolver resolver(io_service_client);
+                ip::tcp::socket socket_client(io_service_client);
+                connect(socket_client, resolver.resolve(ip::tcp::resolver::query ("127.0.0.1", "6379")));
+                streambuf request;
+                std::ostream request_stream(&request);
+                request_stream << "POST /DATABASE QTP/1.0\n";
+                request_stream << "command=GetLongURL\n";
+                request_stream << "arg=" << encrypted_short_url;
+                request_stream << "\n\n";
+                write(socket_client, request);
+                streambuf response_buffer;
+                read_until(socket_client, response_buffer, "\n\n", error);
+                if (error) {
+                    std::cerr << error << std::endl;
+                    socket_client.close();
+                }
+                std::istream response_stream(&response_buffer);
+                std::string response_line;
+                getline(response_stream, response_line);
+                if (response_line.find("QTP /") != std::string::npos) {
+                    std::cout << "QTP" << std::endl;
+                    while (true) {
+                        getline(response_stream, response_line);
+                        if (response_line.find("url=") != std::string::npos) {
+                            long_url = response_line.substr(response_line.find("url=") + 4);
+                            break;
+                        }
+                    }
+                }
+                socket_client.close();
+            }
+            catch (std::exception& e) {
+                std::cerr << e.what() << std::endl;
+            }
+            if (long_url != "No Found") {
                 WriteResponse(long_url, socket, 302);
                 socket.close();
             }
@@ -88,57 +149,6 @@ private:
             socket.close();
         }
     }
-
-    std::string GetLognURL(std::string& short_url) {
-        auto it = data_base.find(short_url);
-        if (it != data_base.end()) return it->second;
-        return "No";
-    }
-
-    std::string GetShortURL(std::string& long_url) {
-        for (const auto& pair : data_base) {
-            if (pair.second == long_url) {
-                return pair.first;
-            }
-        }
-        return "No";
-    }
-
-    std::string Decrypt(std::string& encrypted_long_url) {
-        std::string long_url;
-        for (int i = 0; i < encrypted_long_url.size(); ++i) {
-            if (encrypted_long_url[i] == '%' && i + 2 < encrypted_long_url.size()) {
-                int first_symbol = encrypted_long_url[i + 1] < 58 ? encrypted_long_url[i + 1] - '0' : encrypted_long_url[i + 1] - 'A' + 10;
-                int second_symbol = encrypted_long_url[i + 2] < 58 ? encrypted_long_url[i + 2] - '0' : encrypted_long_url[i + 2] - 'A' + 10;
-                char symbol = (first_symbol << 4) | second_symbol;
-                long_url.push_back(symbol);
-                i += 2;
-            }
-            else if (encrypted_long_url[i] == '+') {
-                long_url.push_back(' ');
-            }
-            else {
-                long_url.push_back(encrypted_long_url[i]);
-            }
-        }
-        return long_url;
-    }
-
-    std::string RandomURL() {
-        const std::string alphabet = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890";
-        boost::minstd_rand generator(static_cast<unsigned int>(std::time(0)));
-        boost::random::uniform_int_distribution<int> rand_alph(0, alphabet.length() - 1);
-        boost::random::uniform_int_distribution<int> rand_len(3, 5);
-        boost::random::variate_generator<boost::minstd_rand&, boost::random::uniform_int_distribution<int>> alph_gen(generator, rand_alph);
-        boost::random::variate_generator<boost::minstd_rand&, boost::random::uniform_int_distribution<int>> len_gen(generator, rand_len);
-        std::string short_url = "http://localhost:8080/";
-        int len_url = len_gen();
-        for (int i = 0; i < len_url; ++i) {
-            short_url += alphabet[alph_gen()];
-        }
-        return short_url;
-    }
-
     void WriteResponse(std::string& url, ip::tcp::socket& socket, int code) {
         streambuf response;
         std::ostream response_stream (&response);
@@ -180,6 +190,7 @@ private:
 
 
 int main() {
+    setlocale(LC_ALL, "Ru");
     try {
         io_service io_service;
         Server server(io_service);
