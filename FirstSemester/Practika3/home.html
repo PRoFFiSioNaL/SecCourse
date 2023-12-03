@@ -1,8 +1,8 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
     <head>
         <meta charset="utf-8"/>
-        <link href="main.css" rel="stylesheet"/>
+        <link href="main_home.css" rel="stylesheet"/>
         <meta name="description" content="Простой способ сокращать ссылки и делиться ими"/>
         <title>Сокращение ссылок</title>
     </head>
@@ -69,11 +69,9 @@
                         url: 'http://localhost:8080/SHORTEN',
                         data: $(this).serialize(),
                         success: function(data) {
-                            // $('#result').html(data);
                             var ss = $('<a>');
-                            ss.attr('href', data); // Установите URL для ссылки на основе полученных данных
-                            ss.text(data); // Текст ссылки
-                            // Обновление содержимого div
+                            ss.attr('href', data); //Установите URL для ссылки на основе полученных данных
+                            ss.text(data); //Текст ссылки
                             $('.response__container #result').empty().append(ss);
                             $('.response__container').show();
                         },

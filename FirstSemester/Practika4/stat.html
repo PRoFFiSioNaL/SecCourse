@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="main_stat.css" rel="stylesheet"/>
+    <title>Правка приоритов</title>
+</head>
+<body>
+    <div id="parrent">
+        <form id="myForm"  class="main-screen__shortener-container">
+            <div class="shortener__url-input-container">
+                <div class="text-input shortener__url-input text-input_view_contrast text-input_size_s56">
+                    <span class="text-input__content">
+                        <div class="text-input__control-container">
+                            <input id="urlField" class="text-input__control" placeholder="Выберите приоритет(ip,url,time)" type="text" value="" name="url"/>
+                        </div>
+                        <span class="text-input__box"></span>
+                    </span>
+                </div>
+                <button type="submit" class="button button_width_auto button_size_s56 button_view_primary button_mode_text">
+                    <div class="button__shape">
+                        <div class="button__content">
+                            <span title="Сократить" class="button__text">Отправить запрос</span>
+                        </div>
+                    </div>
+                </button>
+            </div>
+        </form>
+        <div id="jsonResponseContainer"></div>
+    </div>
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script>
+            $(document).ready(function() {
+                $('#myForm').submit(function(e) {
+                    e.preventDefault();
+                    var formData = $(this).serializeArray();
+                    var data = 'parametrs=' + formData[0].value + "\n\n";
+                    $.ajax({
+                        type: "POST",
+                        url: 'http://localhost:2056/REPORT',
+                        processData: false,
+                        contentType: 'text/plain',
+                        data: data,
+                        success: function(response) {
+                            // Отображение JSON-ответа на странице с помощью Highlight.js
+                            var jsonObject = JSON.parse(response);
+                            var formattedJson = JSON.stringify(jsonObject, null, 2); // Преобразование JSON-ответа в строку с отступами
+                            $('#jsonResponseContainer').html('<pre>' + formattedJson + '</pre>'); // Вставка отформатированного JSON-ответа на страницу
+                        }
+                    });
+                });
+            });
+        </script>
+</body>
+</html>

@@ -1,11 +1,38 @@
 #include <iostream>
+#include <fstream>
 #include <ctime>
+#include <vector>
+#include <thread>
+#include <csignal>
 #include <boost/asio.hpp>
 #include <boost/random.hpp>
+#include <nlohmann/json.hpp>
 
 using namespace boost::asio;
 
-class HashTable { //Хеш-таблица с методом открытых адресаций без фукнции удаления
+class Visit {
+public:
+    Visit(const std::string& url, const std::string& ip, const std::string& time) { //конструктор
+        url_ = url;
+        ip_ = ip;
+        time_ = time;
+    }
+    std::string GetURL() {
+        return url_;
+    }
+    std::string GetIP() {
+        return ip_;
+    }
+    std::string GetTime() {
+        return time_;
+    }
+private:
+    std::string url_;
+    std::string ip_;
+    std::string time_;
+};
+
+class HashTable { //Хеш-таблица с методом открытых адресаций без фукнции удаления для ссылок
 public:
     HashTable() { //конструктор
         for (int i = 0; i < 255; ++i) {
@@ -79,11 +106,11 @@ private:
         while (true) {
             ip::tcp::socket socket(io_service);
             acceptor_.accept(socket);
-            HandleClient(socket);
+            std::thread(&Server::HandleClient, this, std::move(socket)).detach();
         }
     }
 
-    void HandleClient(ip::tcp::socket& socket) {
+    void HandleClient(ip::tcp::socket socket) {
         std::cout << "Client connect" << std::endl;
         boost::system::error_code error;
         streambuf request_buffer; // временное хранилище данных
@@ -97,8 +124,8 @@ private:
         std::istream request_stream(&request_buffer);
         std::string request_line;
         getline(request_stream, request_line);
-        if (request_line.find("POST /DATABASE") != std::string::npos) { // если пришел POST запрос
-            std::cout << "POST" << std::endl;
+        if (request_line.find("POST /DATABASE/REF") != std::string::npos) { // если пришел POST запрос
+            std::cout << "POST /DATABASE/REF" << std::endl;
             std::string command;
             std::string arg;
             int complete = 0; //счетчик считанных аргументов
@@ -137,7 +164,101 @@ private:
                 response = data_base.GetLongURL(arg);
             }
             std::cout << "command = " << command << " arg = " << arg << " response = " << response << std::endl; //log
-            WriteResponse(response, socket);
+            WriteUrlResponse(response, socket);
+            std::cout << "Response send" << std::endl;
+            socket.close();
+        }
+        else if (request_line.find("POST /DATABASE/STATISTIC") != std::string::npos) {
+            std::cout << "POST /DATABASE/STATISTIC" << std::endl;
+            std::string url;
+            std::string ip;
+            std::string time;
+            int complete = 0; //счетчик считанных аргументов
+            while (true) {
+                getline(request_stream, request_line); // извлекаем каждую строку
+                if (request_line.empty()) {
+                    std::cerr << "Request empty";
+                    break;
+                }
+                if (request_line.find("url=") != std::string::npos) {
+                    size_t position = request_line.find("url=");
+                    if (position != std::string::npos) {
+                        url = request_line.substr(position + 4);
+                        complete++;
+                    }
+                }
+                else if (request_line.find("ip=") != std::string::npos) {
+                    size_t position = request_line.find("ip=");
+                    if (position != std::string::npos) {
+                        ip = request_line.substr(position + 3);
+                        complete++;
+                    }
+                }
+                else if (request_line.find("time=") != std::string::npos) {
+                    size_t position = request_line.find("time=");
+                    if (position != std::string::npos) {
+                        time = request_line.substr(position + 5);
+                        complete++;
+                    }
+                }
+                if (complete == 3) break; //все нужные аргументы получены
+            }
+            if (complete != 3) {
+                std::cerr << "Mistake arg";
+                socket.close();
+                return;
+            }
+            visits.emplace_back(url, ip, time); //записываем в вектор объект типа Visit используя конструктор внутри уфнкции emplace_back
+            using json = nlohmann::json;
+            // 1. Загрузим существующие посещения из файла
+            json jsonOutput;
+            std::ifstream inFile("visits.json");
+            inFile.seekg(0, std::ios::end);
+            if (inFile.tellg() != 0) {
+                // Файл не пустой, загружаем содержимое в переменную jsonOutput
+                inFile.seekg(0, std::ios::beg);
+                std::string fileContent((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
+                jsonOutput = json::parse(fileContent);
+            } else {
+                // Файл пуст, инициализируем пустым объектом
+                jsonOutput["visits"] = json::array();
+            }
+            inFile.close();
+            // 2. Добавим новое посещение
+            json jsonVisit; // Создаем JSON объект для каждого посещения.
+            jsonVisit["url"] = url; // Добавляем поле "url".
+            jsonVisit["time"] = time; // Добавляем поле "time".
+            jsonVisit["ip"] = ip; // Добавляем поле "ip".
+            jsonOutput["visits"].push_back(jsonVisit); // Добавляем JSON объект для посещения в массив.
+            // 3. Запишем обновленные данные обратно в файл
+            std::ofstream outFile("visits.json");
+            outFile << jsonOutput.dump(4) << std::endl;
+            outFile.close();
+            socket.close();
+        }
+        else if (request_line.find("GET /") != std::string::npos) {
+            std::cout << "GET /" << std::endl;
+            nlohmann::json data;
+            std::ifstream input_file("visits.json");
+            // Проверка, удалось ли открыть файл
+            if (input_file.is_open()) {
+                // Чтение данных из файла в строку
+                std::string file_contents((std::istreambuf_iterator<char>(input_file)), std::istreambuf_iterator<char>());
+
+                // Десериализация JSON
+                try {
+                    data = nlohmann::json::parse(file_contents);
+                } catch (const std::exception& e) {
+                    std::cerr << "Ошибка при десериализации JSON: " << e.what() << std::endl;
+                }
+
+                // Закрытие файла
+                input_file.close();
+            } else {
+                std::cerr << "Не удалось открыть файл" << std::endl;
+            }
+            
+            WriteJsonResponse(data, socket);
             std::cout << "Response send" << std::endl;
             socket.close();
         }
@@ -166,7 +287,7 @@ private:
         }
         return long_url;
     }
-    void WriteResponse(std::string& url, ip::tcp::socket& socket) {
+    void WriteUrlResponse(std::string& url, ip::tcp::socket& socket) {
         streambuf response;
         std::ostream response_stream (&response);
         response_stream << "QTP /1.0\n";
@@ -175,8 +296,18 @@ private:
         write(socket, response);
     }
 
+    void WriteJsonResponse(nlohmann::json& json, ip::tcp::socket& socket) {
+        streambuf response;
+        std::ostream response_stream (&response);
+        response_stream << "QTP /1.0\n";
+        response_stream << json.dump();
+        response_stream << "\n\n\n";
+        write(socket, response);
+    }
+
     ip::tcp::acceptor acceptor_;
     HashTable data_base;
+    std::vector<Visit> visits;
 };
 
 

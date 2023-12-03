@@ -3,7 +3,7 @@
 #include <boost/asio.hpp>
 #include <nlohmann/json.hpp>
 
-#define ADDRESS "192.168.1.5"
+#define ADDRESS "192.168.1.4"
 
 using namespace boost::asio;
 
@@ -96,7 +96,6 @@ private:
             socket.close();
         }
         else if (request_line.find("POST /REPORT") != std::string::npos) { 
-            //TODO: возврат на запрос, десериализаци€, детализаци€, обработка сигнала остановки и сериализаци€ в файл
             std::cout << "POST /REPORT" << std::endl;
             nlohmann::json data;
             std::string priority_1;
@@ -173,11 +172,8 @@ private:
             nlohmann::json reports = nlohmann::json::array(); //√лавный массив объектов
             int id = 1;
             for (const auto& visit : data["visits"]) {
-                // ¬ывод информации о каждом посещении
-                std::cout << "IP: " << visit["ip"] << ", Time: " << visit["time"] << ", URL: " << visit["url"] << std::endl;
                 nlohmann::json report_priority_1, report_priority_2, report_priority_3; // —оздание нового объекта "report" дл€ каждого посещени€
                 if (priority_1 == "ip") {
-
                     if (reports.empty()) {//ѕерва€ добавление
                         report_priority_1["id"] = id++;
                         report_priority_1["pid"] = 0;
@@ -276,7 +272,6 @@ private:
                                 int idParrentTime = 0;
                                 for (auto& old_report : reports) {
                                     int pid = old_report["pid"].get<int>();
-                                    std::cout << old_report["time"] << " " << visit["time"] << std::endl;
                                     if ((old_report["time"] == visit["time"]) && (pid == idParrentIp)) {
                                         old_report["count"] = old_report.value("count", 1) + 1;
                                         idParrentTime = old_report["id"].get<int>();
@@ -333,7 +328,7 @@ private:
                                 }
                                 if (idParrentUrl == 0) {
                                     report_priority_2["id"] = id++;
-                                    report_priority_2["pid"] = report_priority_1["id"];
+                                    report_priority_2["pid"] = idParrentIp;
                                     report_priority_2["ip"] = NULL;
                                     report_priority_2["time"] = NULL;
                                     report_priority_2["url"] = visit["url"];
@@ -360,7 +355,7 @@ private:
                                     }
                                     if (idParrentTime == 0) {
                                         report_priority_3["id"] = id++;
-                                        report_priority_3["pid"] = report_priority_2["id"];
+                                        report_priority_3["pid"] = idParrentUrl;
                                         report_priority_3["ip"] = NULL;
                                         report_priority_3["time"] = visit["time"];
                                         report_priority_3["url"] = NULL;
@@ -374,72 +369,406 @@ private:
                     }
                 }
                 else if (priority_1 == "time") {
-                    report_priority_1["pid"] = NULL;
-                    report_priority_1["ip"] = NULL;
-                    report_priority_1["time"] = visit["time"];
-                    report_priority_1["url"] = NULL;
-                    if (priority_2 == "ip") {
-                        report_priority_2["id"] = id++;
-                        report_priority_2["pid"] = report_priority_1["id"];
-                        report_priority_2["ip"] = visit["ip"];
-                        report_priority_2["time"] = NULL;
-                        report_priority_2["url"] = NULL;
+                    if (reports.empty()) {//ѕерва€ добавление
+                        report_priority_1["id"] = id++;
+                        report_priority_1["pid"] = 0;
+                        report_priority_1["ip"] = NULL;
+                        report_priority_1["time"] = visit["time"];
+                        report_priority_1["url"] = NULL;
+                        report_priority_1["count"] = 1;
 
-                        report_priority_3["id"] = id++;
-                        report_priority_3["pid"] = report_priority_2["id"];
-                        report_priority_3["ip"] = NULL;
-                        report_priority_3["time"] = NULL;
-                        report_priority_3["url"] = visit["url"];
+                        if (priority_2 == "ip") {
+                            report_priority_2["id"] = id++;
+                            report_priority_2["pid"] = report_priority_1["id"];
+                            report_priority_2["ip"] = visit["ip"];
+                            report_priority_2["time"] = NULL;
+                            report_priority_2["url"] = NULL;
+                            report_priority_2["count"] = 1;
+
+                            report_priority_3["id"] = id++;
+                            report_priority_3["pid"] = report_priority_2["id"];
+                            report_priority_3["ip"] = NULL;
+                            report_priority_3["time"] = NULL;
+                            report_priority_3["url"] = visit["url"];
+                            report_priority_3["count"] = 1;
+                        }
+                        else {
+                            report_priority_2["id"] = id++;
+                            report_priority_2["pid"] = report_priority_1["id"];
+                            report_priority_2["ip"] = NULL;
+                            report_priority_2["time"] = NULL;
+                            report_priority_2["url"] = visit["url"];
+                            report_priority_2["count"] = 1;
+
+                            report_priority_3["id"] = id++;
+                            report_priority_3["pid"] = report_priority_2["id"];
+                            report_priority_3["ip"] = visit["ip"];
+                            report_priority_3["time"] = NULL;
+                            report_priority_3["url"] = NULL;
+                            report_priority_3["count"] = 1;
+                        }
+                        reports.push_back(report_priority_1);
+                        reports.push_back(report_priority_2);
+                        reports.push_back(report_priority_3);
                     }
                     else {
-                        report_priority_2["id"] = id++;
-                        report_priority_2["pid"] = report_priority_1["id"];
-                        report_priority_2["ip"] = NULL;
-                        report_priority_2["time"] = NULL;
-                        report_priority_2["url"] = visit["url"];
+                        int idParrentTime = 0;
+                        for (auto& old_report : reports) {
+                            if (old_report["time"] == visit["time"]) {
+                                old_report["count"] = old_report.value("count", 1) + 1;
+                                idParrentTime = old_report["id"].get<int>();
+                                break;
+                            }
+                        }
+                        if (idParrentTime == 0) {
+                            report_priority_1["id"] = id++;
+                            report_priority_1["pid"] = 0;
+                            report_priority_1["ip"] = NULL;
+                            report_priority_1["time"] = visit["time"];
+                            report_priority_1["url"] = NULL;
+                            report_priority_1["count"] = 1;
+                            if (priority_2 == "ip") {
+                                report_priority_2["id"] = id++;
+                                report_priority_2["pid"] = report_priority_1["id"];
+                                report_priority_2["ip"] = visit["ip"];
+                                report_priority_2["time"] = NULL;
+                                report_priority_2["url"] = NULL;
+                                report_priority_2["count"] = 1;
+                                report_priority_3["id"] = id++;
+                                report_priority_3["pid"] = report_priority_2["id"];
+                                report_priority_3["ip"] = NULL;
+                                report_priority_3["time"] = NULL;
+                                report_priority_3["url"] = visit["url"];
+                                report_priority_3["count"] = 1;
+                            }
+                            else {
+                                report_priority_2["id"] = id++;
+                                report_priority_2["pid"] = report_priority_1["id"];
+                                report_priority_2["ip"] = NULL;
+                                report_priority_2["time"] = NULL;
+                                report_priority_2["url"] = visit["url"];
+                                report_priority_2["count"] = 1;
+                                report_priority_3["id"] = id++;
+                                report_priority_3["pid"] = report_priority_2["id"];
+                                report_priority_3["ip"] = visit["ip"];
+                                report_priority_3["time"] = NULL;
+                                report_priority_3["url"] = NULL;
+                                report_priority_3["count"] = 1;
+                            }
+                            reports.push_back(report_priority_1);
+                            reports.push_back(report_priority_2);
+                            reports.push_back(report_priority_3);
+                        }
+                        else { //≈сли time существовал
+                            if (priority_2 == "ip") {
 
-                        report_priority_3["id"] = id++;
-                        report_priority_3["pid"] = report_priority_2["id"];
-                        report_priority_3["ip"] = visit["ip"];
-                        report_priority_3["time"] = NULL;
-                        report_priority_3["url"] = NULL;
+                                int idParrentIp = 0;
+                                for (auto& old_report : reports) {
+                                    int pid = old_report["pid"].get<int>();
+                                    if ((old_report["ip"] == visit["ip"]) && (pid == idParrentTime)) {
+                                        old_report["count"] = old_report.value("count", 1) + 1;
+                                        idParrentIp = old_report["id"].get<int>();
+                                        break;
+                                    }
+                                }
+                                if (idParrentIp == 0) {
+                                    report_priority_2["id"] = id++;
+                                    report_priority_2["pid"] = idParrentTime;
+                                    report_priority_2["ip"] = visit["ip"];
+                                    report_priority_2["time"] = NULL;
+                                    report_priority_2["url"] = NULL;
+                                    report_priority_2["count"] = 1;
+
+                                    report_priority_3["id"] = id++;
+                                    report_priority_3["pid"] = report_priority_2["id"];
+                                    report_priority_3["ip"] = NULL;
+                                    report_priority_3["time"] = NULL;
+                                    report_priority_3["url"] = visit["url"];
+                                    report_priority_3["count"] = 1;
+
+                                    reports.push_back(report_priority_2);
+                                    reports.push_back(report_priority_3);
+                                }
+                                else {
+                                    int idParrentUrl = 0;
+                                    for (auto& old_report : reports) {
+                                        if ((old_report["url"] == visit["url"]) && (old_report["pid"].get<int>() == idParrentIp)) {
+                                            old_report["count"] = old_report.value("count", 1) + 1;
+                                            idParrentUrl = old_report["id"];
+                                            break;
+                                        }
+                                    }
+                                    if (idParrentUrl == 0) {
+                                        report_priority_3["id"] = id++;
+                                        report_priority_3["pid"] = idParrentIp;
+                                        report_priority_3["ip"] = NULL;
+                                        report_priority_3["time"] = NULL;
+                                        report_priority_3["url"] = visit["url"];
+                                        report_priority_3["count"] = 1;
+
+                                        reports.push_back(report_priority_3);
+                                    }
+                                }
+                            }
+                            else { //≈сли сначала юрл, а не ip
+                                int idParrentUrl = 0;
+                                for (auto& old_report : reports) {
+                                    if ((old_report["url"] == visit["url"]) && (old_report["pid"].get<int>() == idParrentTime)) { //Ќадо сделать не пр€мой равенство по времени, а интервальное в минуту, € хочу обрезать строку с секнудами и таким образом сравнивать минуты
+                                        old_report["count"] = old_report.value("count", 1) + 1;
+                                        idParrentUrl = old_report["id"].get<int>();
+                                        break;
+                                    }
+                                }
+                                if (idParrentUrl == 0) {
+                                    report_priority_2["id"] = id++;
+                                    report_priority_2["pid"] = idParrentTime;
+                                    report_priority_2["ip"] = NULL;
+                                    report_priority_2["time"] = NULL;
+                                    report_priority_2["url"] = visit["url"];
+                                    report_priority_2["count"] = 1;
+
+                                    report_priority_3["id"] = id++;
+                                    report_priority_3["pid"] = report_priority_2["id"];
+                                    report_priority_3["ip"] = visit["ip"];
+                                    report_priority_3["time"] = NULL;
+                                    report_priority_3["url"] = NULL;
+                                    report_priority_3["count"] = 1;
+
+                                    reports.push_back(report_priority_2);
+                                    reports.push_back(report_priority_3);
+                                }
+                                else {
+                                    int idParrentIp = 0;
+                                    for (auto& old_report : reports) {
+                                        if ((old_report["ip"] == visit["ip"]) && (old_report["pid"].get<int>() == idParrentUrl)) { //Ќадо сделать не пр€мой равенство по времени, а интервальное в минуту, € хочу обрезать строку с секнудами и таким образом сравнивать минуты
+                                            old_report["count"] = old_report.value("count", 1) + 1;
+                                            idParrentIp = old_report["id"];
+                                            break;
+                                        }
+                                    }
+                                    if (idParrentIp == 0) {
+                                        report_priority_3["id"] = id++;
+                                        report_priority_3["pid"] = idParrentUrl;
+                                        report_priority_3["ip"] = visit["ip"];
+                                        report_priority_3["time"] = NULL;
+                                        report_priority_3["url"] = NULL;
+                                        report_priority_3["count"] = 1;
+
+                                        reports.push_back(report_priority_3);
+                                    }
+                                }
+                            }
+                        }
                     }
+
                 }
                 else if (priority_1 == "url") {
-                    report_priority_1["pid"] = NULL;
-                    report_priority_1["ip"] = NULL;
-                    report_priority_1["time"] = NULL;
-                    report_priority_1["url"] = visit["url"];
-                    if (priority_2 == "ip") {
-                        report_priority_2["id"] = id++;
-                        report_priority_2["pid"] = report_priority_1["id"];
-                        report_priority_2["ip"] = visit["ip"];
-                        report_priority_2["time"] = NULL;
-                        report_priority_2["url"] = NULL;
+                    if (reports.empty()) {
+                        report_priority_1["id"] = id++;
+                        report_priority_1["pid"] = NULL;
+                        report_priority_1["ip"] = NULL;
+                        report_priority_1["time"] = NULL;
+                        report_priority_1["url"] = visit["url"];
+                        report_priority_1["count"] = 1;
+                        if (priority_2 == "ip") {
+                            report_priority_2["id"] = id++;
+                            report_priority_2["pid"] = report_priority_1["id"];
+                            report_priority_2["ip"] = visit["ip"];
+                            report_priority_2["time"] = NULL;
+                            report_priority_2["url"] = NULL;
+                            report_priority_2["count"] = 1;
 
-                        report_priority_3["id"] = id++;
-                        report_priority_3["pid"] = report_priority_2["id"];
-                        report_priority_3["ip"] = NULL;
-                        report_priority_3["time"] = visit["time"];
-                        report_priority_3["url"] = NULL;
+                            report_priority_3["id"] = id++;
+                            report_priority_3["pid"] = report_priority_2["id"];
+                            report_priority_3["ip"] = NULL;
+                            report_priority_3["time"] = visit["time"];
+                            report_priority_3["url"] = NULL;
+                            report_priority_3["count"] = 1;
+                        }
+                        else {
+                            report_priority_2["id"] = id++;
+                            report_priority_2["pid"] = report_priority_1["id"];
+                            report_priority_2["ip"] = NULL;
+                            report_priority_2["time"] = visit["time"];
+                            report_priority_2["url"] = NULL;
+                            report_priority_2["count"] = 1;
+
+                            report_priority_3["id"] = id++;
+                            report_priority_3["pid"] = report_priority_2["id"];
+                            report_priority_3["ip"] = visit["ip"];
+                            report_priority_3["time"] = NULL;
+                            report_priority_3["url"] = NULL;
+                            report_priority_3["count"] = 1;
+                        }
+                        reports.push_back(report_priority_1);
+                        reports.push_back(report_priority_2);
+                        reports.push_back(report_priority_3);
                     }
                     else {
-                        report_priority_2["id"] = id++;
-                        report_priority_2["pid"] = report_priority_1["id"];
-                        report_priority_2["ip"] = NULL;
-                        report_priority_2["time"] = visit["time"];
-                        report_priority_2["url"] = NULL;
+                        int idParrentUrl = 0;
+                        for (auto& old_report : reports) {
+                            if (old_report["url"] == visit["url"]) {
+                                old_report["count"] = old_report.value("count", 1) + 1;
+                                idParrentUrl = old_report["id"].get<int>();
+                                break;
+                            }
+                        }
+                        if (idParrentUrl == 0) {
+                            report_priority_1["id"] = id++;
+                            report_priority_1["pid"] = 0;
+                            report_priority_1["ip"] = NULL;
+                            report_priority_1["time"] = NULL;
+                            report_priority_1["url"] = visit["url"];
+                            report_priority_1["count"] = 1;
+                            if (priority_2 == "ip") {
+                                report_priority_2["id"] = id++;
+                                report_priority_2["pid"] = report_priority_1["id"];
+                                report_priority_2["ip"] = visit["ip"];
+                                report_priority_2["time"] = NULL;
+                                report_priority_2["url"] = NULL;
+                                report_priority_2["count"] = 1;
 
-                        report_priority_3["id"] = id++;
-                        report_priority_3["pid"] = report_priority_2["id"];
-                        report_priority_3["ip"] = visit["ip"];
-                        report_priority_3["time"] = NULL;
-                        report_priority_3["url"] = NULL;
+                                report_priority_3["id"] = id++;
+                                report_priority_3["pid"] = report_priority_2["id"];
+                                report_priority_3["ip"] = NULL;
+                                report_priority_3["time"] = visit["time"];
+                                report_priority_3["url"] = NULL;
+                                report_priority_3["count"] = 1;
+                            }
+                            else {
+                                report_priority_2["id"] = id++;
+                                report_priority_2["pid"] = report_priority_1["id"];
+                                report_priority_2["ip"] = NULL;
+                                report_priority_2["time"] = visit["time"];
+                                report_priority_2["url"] = NULL;
+                                report_priority_2["count"] = 1;
+
+                                report_priority_3["id"] = id++;
+                                report_priority_3["pid"] = report_priority_2["id"];
+                                report_priority_3["ip"] = visit["ip"];
+                                report_priority_3["time"] = NULL;
+                                report_priority_3["url"] = NULL;
+                                report_priority_3["count"] = 1;
+                            }
+                            reports.push_back(report_priority_1);
+                            reports.push_back(report_priority_2);
+                            reports.push_back(report_priority_3);
+                        }
+                        else { //≈сли url существовал
+                            if (priority_2 == "ip") {
+
+                                int idParrentIp = 0;
+                                for (auto& old_report : reports) {
+                                    int pid = old_report["pid"].get<int>();
+                                    if ((old_report["ip"] == visit["ip"]) && (pid == idParrentUrl)) {
+                                        old_report["count"] = old_report.value("count", 1) + 1;
+                                        idParrentIp = old_report["id"].get<int>();
+                                        break;
+                                    }
+                                }
+                                if (idParrentIp == 0) {
+                                    report_priority_2["id"] = id++;
+                                    report_priority_2["pid"] = idParrentUrl;
+                                    report_priority_2["ip"] = visit["ip"];
+                                    report_priority_2["time"] = NULL;
+                                    report_priority_2["url"] = NULL;
+                                    report_priority_2["count"] = 1;
+
+                                    report_priority_3["id"] = id++;
+                                    report_priority_3["pid"] = report_priority_2["id"];
+                                    report_priority_3["ip"] = NULL;
+                                    report_priority_3["time"] = visit["time"];
+                                    report_priority_3["url"] = NULL;
+                                    report_priority_3["count"] = 1;
+
+                                    reports.push_back(report_priority_2);
+                                    reports.push_back(report_priority_3);
+                                }
+                                else {
+                                    int idParrentTime = 0;
+                                    for (auto& old_report : reports) {
+                                        if ((old_report["time"] == visit["time"]) && (old_report["pid"].get<int>() == idParrentIp)) {
+                                            old_report["count"] = old_report.value("count", 1) + 1;
+                                            idParrentTime = old_report["id"];
+                                            break;
+                                        }
+                                    }
+                                    if (idParrentTime == 0) {
+                                        report_priority_3["id"] = id++;
+                                        report_priority_3["pid"] = idParrentIp;
+                                        report_priority_3["ip"] = NULL;
+                                        report_priority_3["time"] = visit["time"];
+                                        report_priority_3["url"] = NULL;
+                                        report_priority_3["count"] = 1;
+
+                                        reports.push_back(report_priority_3);
+                                    }
+                                }
+                            }
+                            else { //≈сли сначала врем€, а не ip
+                                int idParrentTime = 0;
+                                for (auto& old_report : reports) {
+                                    if ((old_report["time"] == visit["time"]) && (old_report["pid"].get<int>() == idParrentUrl)) { //Ќадо сделать не пр€мой равенство по времени, а интервальное в минуту, € хочу обрезать строку с секнудами и таким образом сравнивать минуты
+                                        old_report["count"] = old_report.value("count", 1) + 1;
+                                        idParrentUrl = old_report["id"].get<int>();
+                                        break;
+                                    }
+                                }
+                                if (idParrentTime == 0) {
+                                    report_priority_2["id"] = id++;
+                                    report_priority_2["pid"] = idParrentUrl;
+                                    report_priority_2["ip"] = NULL;
+                                    report_priority_2["time"] = visit["time"];
+                                    report_priority_2["url"] = NULL;
+                                    report_priority_2["count"] = 1;
+
+                                    report_priority_3["id"] = id++;
+                                    report_priority_3["pid"] = report_priority_2["id"];
+                                    report_priority_3["ip"] = visit["ip"];
+                                    report_priority_3["time"] = NULL;
+                                    report_priority_3["url"] = NULL;
+                                    report_priority_3["count"] = 1;
+
+                                    reports.push_back(report_priority_2);
+                                    reports.push_back(report_priority_3);
+                                }
+                                else {
+                                    int idParrentIp = 0;
+                                    for (auto& old_report : reports) {
+                                        if ((old_report["ip"] == visit["ip"]) && (old_report["pid"].get<int>() == idParrentTime)) { //Ќадо сделать не пр€мой равенство по времени, а интервальное в минуту, € хочу обрезать строку с секнудами и таким образом сравнивать минуты
+                                            old_report["count"] = old_report.value("count", 1) + 1;
+                                            idParrentIp = old_report["id"];
+                                            break;
+                                        }
+                                    }
+                                    if (idParrentIp == 0) {
+                                        report_priority_3["id"] = id++;
+                                        report_priority_3["pid"] = idParrentTime;
+                                        report_priority_3["ip"] = visit["ip"];
+                                        report_priority_3["time"] = NULL;
+                                        report_priority_3["url"] = NULL;
+                                        report_priority_3["count"] = 1;
+
+                                        reports.push_back(report_priority_3);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-                std::cout << "\n\n json::reports\n" << reports.dump() << std::endl;
             }
-            std::cout << "\n\n json::reports\n" << reports.dump() << std::endl;
+            std::cout << reports.dump() << std::endl;
+            streambuf response;
+            std::ostream response_stream (&response);
+            response_stream << "HTTP/1.1 200 OK\r\n";
+            response_stream << "Access-Control-Allow-Origin: *\r\n";
+            response_stream << "Access-Control-Allow-Methods: GET, POST, PUT, DELETE\r\n";
+            response_stream << "Access-Control-Allow-Headers: Content-Type, Authorization\r\n";
+            response_stream << "Content-Type: text/plain\r\n";
+            response_stream << "Content-Length: " << std::to_string(reports.dump().length()) << "\r\n";
+            response_stream << "\r\n";
+            response_stream << reports.dump();
+            write(socket, response);
         }
         else {
             std::cout << "SOMETHING = \"" << request_line << "\"" << std::endl;
@@ -450,6 +779,7 @@ private:
 };
 
 int main() {
+    setlocale(LC_ALL, "Ru");
     try {
         io_service io_service;
         Server server(io_service);

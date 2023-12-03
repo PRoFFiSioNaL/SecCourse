@@ -3,7 +3,9 @@
 #include <ctime>
 #include <boost/asio.hpp>
 #include <boost/random.hpp>
-#include <unordered_map>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+#define ADDRESS "192.168.1.4" //поменять в случае смены локального адреса
 
 using namespace boost::asio;
 
@@ -54,12 +56,11 @@ private:
             try { //отправка в БД
                 io_service io_service_client;
                 ip::tcp::resolver resolver(io_service_client);
-                //ip::tcp::resolver::query query(ip::tcp::v4(), "8080");
                 ip::tcp::socket socket_client(io_service_client);
-                connect(socket_client, resolver.resolve(ip::tcp::resolver::query ("127.0.0.1", "6379")));
+                connect(socket_client, resolver.resolve(ip::tcp::resolver::query (ADDRESS, "6379")));
                 streambuf request;
                 std::ostream request_stream(&request);
-                request_stream << "POST /DATABASE QTP/1.0\n";
+                request_stream << "POST /DATABASE/REF QTP/1.0\n";
                 request_stream << "command=GetShortURL\n";
                 request_stream << "arg=" << encrypted_long_url;
                 request_stream << "\n\n";
@@ -103,10 +104,10 @@ private:
                 io_service io_service_client;
                 ip::tcp::resolver resolver(io_service_client);
                 ip::tcp::socket socket_client(io_service_client);
-                connect(socket_client, resolver.resolve(ip::tcp::resolver::query ("127.0.0.1", "6379")));
+                connect(socket_client, resolver.resolve(ip::tcp::resolver::query (ADDRESS, "6379")));
                 streambuf request;
                 std::ostream request_stream(&request);
-                request_stream << "POST /DATABASE QTP/1.0\n";
+                request_stream << "POST /DATABASE/REF QTP/1.0\n";
                 request_stream << "command=GetLongURL\n";
                 request_stream << "arg=" << encrypted_short_url;
                 request_stream << "\n\n";
@@ -136,6 +137,29 @@ private:
                 std::cerr << e.what() << std::endl;
             }
             if (long_url != "No Found") {
+                try { //отправка статистики
+                    io_service io_service_client;
+                    ip::tcp::resolver resolver(io_service_client);
+                    ip::tcp::socket socket_client(io_service_client);
+                    connect(socket_client, resolver.resolve(ip::tcp::resolver::query (ADDRESS, "2056")));
+                    streambuf request;
+                    boost::posix_time::time_facet* facet = new boost::posix_time::time_facet("%Y-%m-%d %H:%M");
+                    std::stringstream ss;
+                    ss.imbue(std::locale(std::locale(), facet));
+                    ss << boost::posix_time::second_clock::local_time();
+                    std::string time_string = ss.str();
+                    std::ostream request_stream(&request);
+                    request_stream << "POST /STATISTIC QTP/1.0\n";
+                    request_stream << "url=" << long_url <<" (" << encrypted_short_url << ")\n";
+                    request_stream << "ip=" << socket.remote_endpoint().address().to_string() << "\n";
+                    request_stream << "time=" << time_string << "\n";
+                    request_stream << "\n";
+                    write(socket_client, request);
+                    socket_client.close();
+                }
+                catch (std::exception& e) {
+                    std::cerr << e.what() << std::endl;
+                }
                 WriteResponse(long_url, socket, 302);
                 socket.close();
             }
@@ -185,7 +209,6 @@ private:
     }
 
     ip::tcp::acceptor acceptor_;
-    std::unordered_map<std::string, std::string> data_base;
 };
 
 
